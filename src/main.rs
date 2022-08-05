@@ -17,6 +17,9 @@ const MAX_KB: usize = MB_SIZE * 2;
 const MAX_KB_NEXT: usize = MAX_KB + 1;
 
 const MAX_MB: usize = GB_SIZE * 2; // cannot be more sorry, this is where the 32bit overflow happens
+const MAX_MB_NEXT: usize = MAX_MB + 1;
+
+const HALF_TB: usize = GB_SIZE * 512;
 
 lazy_static! {
     static ref KB_SIZE_F64: f64 = f64::from(KB_SIZE as u32);
@@ -31,10 +34,11 @@ fn format_bytes(bytes: usize) -> String {
         0..=MAX_BYTE => format!("{} Bytes", bytes),
         MAX_BYTE_NEXT..=MAX_KB => format!("{:.2} KB", f64::from(bytes as u32) / *KB_SIZE_F64),
         MAX_KB_NEXT..=MAX_MB => format!("{:.2} MB", f64::from(bytes as u32) / *MB_SIZE_F64),
-        _ => format!(
+        MAX_MB_NEXT..=HALF_TB => format!(
             "{:.2} GB",
             f64::from((bytes / MB_SIZE) as u32) / *KB_SIZE_F64
         ),
+        _ => format!("{} GB", bytes / GB_SIZE),
     }
 }
 
