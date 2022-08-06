@@ -41,6 +41,7 @@ fn print_help() {
     eprintln!("metered_pipe - pipe stdin to stdout while printing amount of data and throughput to stderr");
     eprintln!("USAGE: metered_pipe [-s] [-h]");
     eprintln!("  -s: use static instead of adaptive buffer");
+    eprintln!("  -t: report totals only");
     eprintln!("  -h: print this help text");
 }
 
@@ -80,22 +81,33 @@ fn format_bytes(bytes: usize) -> String {
 }
 
 fn main() -> Result<()> {
-    let (adaptive_buffer, mut buf_size) = if let Some(arg) = args().nth(1) {
-        if arg == "-s" {
-            (false, MB_SIZE)
-        } else if arg == "-h" {
-            print_help();
-            return Ok(());
-        } else {
-            print_help();
-            return Err(anyhow!(
-                "metered_pipe: invalid command line argument {}",
-                arg
-            ));
-        }
-    } else {
-        (true, KB_SIZE)
-    };
+    let mut adaptive_buffer = true;
+    let mut totals_only = false;
+    let mut buf_size = MB_SIZE;
+
+    for arg in args().skip(1) {
+        match arg.as_str() {
+            "-s" => {
+                adaptive_buffer = true;
+                buf_size = KB_SIZE;
+            }
+            "-t" => {
+                totals_only = true;
+            }
+            _ => {
+                print_help();
+                return Err(anyhow!(
+                    "metered_pipe: invalid command line argument {}",
+                    arg
+                ));
+            }
+        };
+    }
+
+    if totals_only {
+        adaptive_buffer = false;
+        buf_size = MB_SIZE;
+    }
 
     let data_in = stdin();
     let mut stdin_handle = data_in.lock();
@@ -124,29 +136,31 @@ fn main() -> Result<()> {
                         .with_context(|| "failed to write to stdout")?;
                     bytes_written += size;
 
-                    let elapsed = (Instant::now() - start_time).as_secs_f64();
-                    if elapsed - last_print >= 1.0 {
-                        if adaptive_buffer
-                            && (size == buf_size)
-                            && (buf_size >= MIN_BUF_SIZE * 2)
-                            && (elapsed - last_print > 2.0)
+                    if !totals_only {
+                        let elapsed = (Instant::now() - start_time).as_secs_f64();
+                        if elapsed - last_print >= 1.0 {
+                            if adaptive_buffer
+                                && (size == buf_size)
+                                && (buf_size >= MIN_BUF_SIZE * 2)
+                                && (elapsed - last_print > 2.0)
+                            {
+                                buf_size /= 2;
+                                buf.resize(buf_size, 0);
+                            }
+
+                            last_print = elapsed;
+                            eprint!(
+                                "{}, {}   \u{d}",
+                                format_bytes(bytes_written),
+                                format_flow(bytes_written, elapsed)
+                            )
+                        } else if adaptive_buffer
+                            && (buf_size <= MAX_BUF_SIZE / 2)
+                            && (elapsed - last_print < 0.25)
                         {
-                            buf_size /= 2;
+                            buf_size *= 2;
                             buf.resize(buf_size, 0);
                         }
-
-                        last_print = elapsed;
-                        eprint!(
-                            "{}, {}   \u{d}",
-                            format_bytes(bytes_written),
-                            format_flow(bytes_written, elapsed)
-                        )
-                    } else if adaptive_buffer
-                        && (buf_size <= MAX_BUF_SIZE / 2)
-                        && (elapsed - last_print < 0.25)
-                    {
-                        buf_size *= 2;
-                        buf.resize(buf_size, 0);
                     }
                 }
             }
