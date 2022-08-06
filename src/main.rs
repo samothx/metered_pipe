@@ -38,10 +38,10 @@ const MIN_BUF_SIZE: usize = 256;
 const MAX_BUF_SIZE: usize = MB_SIZE * 32;
 
 fn print_help() {
-    eprintln!("metered_pipe - USAGE:");
-    eprintln!("  metered_pipe [-s] [-h]");
-    eprintln!("    -s: use static instead of adaptive buffer");
-    eprintln!("    -h: print this help text");
+    eprintln!("metered_pipe - pipe stdin to stdout while printing amount of data and throughput to stderr");
+    eprintln!("USAGE: metered_pipe [-s] [-h]");
+    eprintln!("  -s: use static instead of adaptive buffer");
+    eprintln!("  -h: print this help text");
 }
 
 fn format_flow(bytes: usize, seconds: f64) -> String {
