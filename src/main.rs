@@ -100,13 +100,13 @@ fn main() -> Result<()> {
     let f64_consts = F64Consts::new();
     let mut adaptive_buffer = true;
     let mut totals_only = false;
-    let mut buf_size = MB_SIZE;
+    let mut buf_size = KB_SIZE;
 
     for arg in args().skip(1) {
         match arg.as_str() {
             "-s" => {
-                adaptive_buffer = true;
-                buf_size = KB_SIZE;
+                adaptive_buffer = false;
+                buf_size = MB_SIZE;
             }
             "-t" => {
                 totals_only = true;
@@ -132,11 +132,15 @@ fn main() -> Result<()> {
     let mut stdout_handle = data_out.lock();
     let mut bytes_written = 0usize;
     let mut last_print = 0f64;
-    let mut buf: Vec<u8> = vec![0; buf_size];
+    let mut buf: Vec<u8> = if adaptive_buffer {
+        vec![0; MAX_BUF_SIZE]
+    } else {
+        vec![0; MB_SIZE]
+    };
     let start_time = Instant::now();
 
     loop {
-        match stdin_handle.read(&mut buf) {
+        match stdin_handle.read(&mut buf[0..buf_size]) {
             Ok(size) => {
                 if size == 0 {
                     let elapsed = (Instant::now() - start_time).as_secs_f64();
@@ -162,7 +166,6 @@ fn main() -> Result<()> {
                                 && (elapsed - last_print > 2.0)
                             {
                                 buf_size /= 2;
-                                buf.resize(buf_size, 0);
                             }
 
                             last_print = elapsed;
@@ -172,11 +175,10 @@ fn main() -> Result<()> {
                                 format_flow(bytes_written, elapsed, &f64_consts)
                             )
                         } else if adaptive_buffer
-                            && (buf_size <= MAX_BUF_SIZE / 2)
+                            && (buf_size <= buf.len() / 2)
                             && (elapsed - last_print < 0.25)
                         {
                             buf_size *= 2;
-                            buf.resize(buf_size, 0);
                         }
                     }
                 }
