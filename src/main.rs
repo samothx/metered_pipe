@@ -58,8 +58,6 @@ fn print_help() {
 }
 
 fn format_flow(bytes: usize, seconds: f64, f64_consts: &F64Consts) -> String {
-    assert!(seconds >= 1.0);
-
     let flow = if bytes <= TWO_GB {
         f64::from(bytes as u32) / seconds
     } else if bytes <= HALF_TB {
@@ -145,7 +143,7 @@ fn main() -> Result<()> {
                 if size == 0 {
                     let elapsed = (Instant::now() - start_time).as_secs_f64();
                     eprintln!(
-                        "{} in {} secs, {}",
+                        "{} in {:.2} secs, {}",
                         format_bytes(bytes_written, &f64_consts),
                         elapsed,
                         format_flow(bytes_written, elapsed, &f64_consts),
