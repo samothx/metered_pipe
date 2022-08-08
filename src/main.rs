@@ -3,7 +3,6 @@ extern crate core;
 use anyhow::{anyhow, Context, Result};
 use std::env::args;
 
-use lazy_static::lazy_static;
 use std::io::{stdin, stdout, Read, Write};
 use std::time::Instant;
 
@@ -25,13 +24,26 @@ const MAX_KB_NEXT: usize = MAX_KB + 1;
 const MAX_MB: usize = TWO_GB; // cannot be more than 2 GB - sorry, this is where the 32bit overflow happens
 const MAX_MB_NEXT: usize = MAX_MB + 1;
 
-lazy_static! {
-    static ref MAX_BYTE_F64: f64 = f64::from(TWO_KB as u32);
-    static ref MAX_KB_F64: f64 = f64::from(TWO_MB as u32);
-    static ref MAX_MB_F64: f64 = f64::from(TWO_GB as u32);
-    static ref KB_SIZE_F64: f64 = f64::from(KB_SIZE as u32);
-    static ref MB_SIZE_F64: f64 = f64::from(MB_SIZE as u32);
-    static ref GB_SIZE_F64: f64 = f64::from(GB_SIZE as u32);
+struct F64Consts {
+    max_byte_f64: f64,
+    max_kb_f64: f64,
+    max_mb_f64: f64,
+    kb_size_f64: f64,
+    mb_size_f64: f64,
+    gb_size_f64: f64,
+}
+
+impl F64Consts {
+    fn new() -> F64Consts {
+        F64Consts {
+            max_byte_f64: f64::from(TWO_KB as u32),
+            max_kb_f64: f64::from(TWO_MB as u32),
+            max_mb_f64: f64::from(TWO_GB as u32),
+            kb_size_f64: f64::from(KB_SIZE as u32),
+            mb_size_f64: f64::from(MB_SIZE as u32),
+            gb_size_f64: f64::from(GB_SIZE as u32),
+        }
+    }
 }
 
 const MIN_BUF_SIZE: usize = 256;
@@ -45,42 +57,47 @@ fn print_help() {
     eprintln!("  -h: print this help text");
 }
 
-fn format_flow(bytes: usize, seconds: f64) -> String {
+fn format_flow(bytes: usize, seconds: f64, f64_consts: &F64Consts) -> String {
     assert!(seconds >= 1.0);
 
     let flow = if bytes <= TWO_GB {
         f64::from(bytes as u32) / seconds
     } else if bytes <= HALF_TB {
-        f64::from((bytes / MB_SIZE) as u32) / seconds * *MB_SIZE_F64
+        f64::from((bytes / MB_SIZE) as u32) / seconds * f64_consts.mb_size_f64
     } else {
-        f64::from((bytes / GB_SIZE) as u32) / seconds * *GB_SIZE_F64
+        f64::from((bytes / GB_SIZE) as u32) / seconds * f64_consts.gb_size_f64
     };
 
-    if flow <= *MAX_BYTE_F64 {
+    if flow <= f64_consts.max_byte_f64 {
         format!("{:.2} Bytes/sec", flow)
-    } else if flow <= *MAX_KB_F64 {
-        format!("{:.2} KB/sec", flow / *KB_SIZE_F64)
-    } else if flow <= *MAX_MB_F64 {
-        format!("{:.2} MB/sec", flow / *MB_SIZE_F64)
+    } else if flow <= f64_consts.max_kb_f64 {
+        format!("{:.2} KB/sec", flow / f64_consts.kb_size_f64)
+    } else if flow <= f64_consts.max_mb_f64 {
+        format!("{:.2} MB/sec", flow / f64_consts.mb_size_f64)
     } else {
-        format!("{:.2} GB/sec", flow / *GB_SIZE_F64)
+        format!("{:.2} GB/sec", flow / f64_consts.gb_size_f64)
     }
 }
 
-fn format_bytes(bytes: usize) -> String {
+fn format_bytes(bytes: usize, f64_consts: &F64Consts) -> String {
     match bytes {
         0..=MAX_BYTE => format!("{} Bytes", bytes),
-        MAX_BYTE_NEXT..=MAX_KB => format!("{:.2} KB", f64::from(bytes as u32) / *KB_SIZE_F64),
-        MAX_KB_NEXT..=MAX_MB => format!("{:.2} MB", f64::from(bytes as u32) / *MB_SIZE_F64),
+        MAX_BYTE_NEXT..=MAX_KB => {
+            format!("{:.2} KB", f64::from(bytes as u32) / f64_consts.kb_size_f64)
+        }
+        MAX_KB_NEXT..=MAX_MB => {
+            format!("{:.2} MB", f64::from(bytes as u32) / f64_consts.mb_size_f64)
+        }
         MAX_MB_NEXT..=HALF_TB => format!(
             "{:.2} GB",
-            f64::from((bytes / MB_SIZE) as u32) / *KB_SIZE_F64
+            f64::from((bytes / MB_SIZE) as u32) / f64_consts.kb_size_f64
         ),
         _ => format!("{} GB", bytes / GB_SIZE),
     }
 }
 
 fn main() -> Result<()> {
+    let f64_consts = F64Consts::new();
     let mut adaptive_buffer = true;
     let mut totals_only = false;
     let mut buf_size = MB_SIZE;
@@ -125,9 +142,9 @@ fn main() -> Result<()> {
                     let elapsed = (Instant::now() - start_time).as_secs_f64();
                     eprintln!(
                         "{} in {:?}, {}",
-                        format_bytes(bytes_written),
+                        format_bytes(bytes_written, &f64_consts),
                         elapsed,
-                        format_flow(bytes_written, elapsed),
+                        format_flow(bytes_written, elapsed, &f64_consts),
                     );
                     return Ok(());
                 } else {
@@ -151,8 +168,8 @@ fn main() -> Result<()> {
                             last_print = elapsed;
                             eprint!(
                                 "{}, {}   \u{d}",
-                                format_bytes(bytes_written),
-                                format_flow(bytes_written, elapsed)
+                                format_bytes(bytes_written, &f64_consts),
+                                format_flow(bytes_written, elapsed, &f64_consts)
                             )
                         } else if adaptive_buffer
                             && (buf_size <= MAX_BUF_SIZE / 2)
