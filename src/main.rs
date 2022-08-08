@@ -145,7 +145,7 @@ fn main() -> Result<()> {
                 if size == 0 {
                     let elapsed = (Instant::now() - start_time).as_secs_f64();
                     eprintln!(
-                        "{} in {:?}, {}",
+                        "{} in {} secs, {}",
                         format_bytes(bytes_written, &f64_consts),
                         elapsed,
                         format_flow(bytes_written, elapsed, &f64_consts),
